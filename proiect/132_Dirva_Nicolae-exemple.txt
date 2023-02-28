@@ -1,0 +1,130 @@
+12.Formulați în  limbaj  natural și  implementați 5cereri  SQL  complexece  vor  utiliza,
+în ansamblul lor, următoarele elemente: 
+•operație joinpe cel puțin 4 tabele
+•filtrare la nivel delinii
+•subcereri sincronizateîn care intervin cel puțin 3 tabele
+•subcereri nesincronizateîn care intervin cel puțin 3 tabele
+•grupări de date, funcții grup, filtrare la nivel degrupuri
+•ordonări
+•utilizarea a cel puțin 2 funcții pe șiruri de caractere, 2 funcții pe date calendaristice, a funcțiilor NVL și DECODE, a cel puțin unei expresii CASE
+•utilizarea a cel puțin 1 bloc de cerere(clauza WITH)
+
+I.Afisati numele liderului galeriei/galeriilor care sustine echipa sponsorizata de sponsorul
+care sponsorizeaza cele mai putine echipe.
+
+select lider_galerie
+from galerie g, echipa e, contract c, sponsor s
+where g.id_echipa = e.id_echipa and e.id_echipa = c.id_echipa
+and c.id_sponsor = s.id_sponsor and g.id_echipa in (select e.id_echipa
+                                                    from echipa e, contract c
+                                                    where e.id_echipa = c.id_echipa and c.id_sponsor = (select s.id_sponsor
+                                                                                                        from sponsor s
+                                                                                                        where s.numar_echipe_sponsorizate in (select min(numar_echipe_sponsorizate)
+                                                                                                                                                from sponsor)));
+Am acoperit cerintele:
+-operație join pe cel puțin 4 tabele
+-subcereri nesincronizate în care intervin cel puțin 3 tabele
+-filtrare la nivel de linii
+
+II.
+Afisati numarul de spectatori de la meciurile care apartin campionatului desfasurat in tara Anglia care se desfasoara in etapa cu numarul 
+maxim existent.Rezultatele vor fi afisare in ordine descrescatoare.
+
+select m1.numar_spectatori
+from meci m1
+where m1.cod_etapa in (select e.cod_etapa
+                from campionat c, etapa e
+                where c.id_campionat = e.id_campionat
+                and c.id_campionat = (select id_campionat
+                                        from campionat
+                                        where lower(tara_desfasurare) like 'anglia')
+                and e.numar_etapa = (select max(numar_etapa)
+                                        from etapa)
+                and m1.id_campionat = c.id_campionat)
+order by numar_spectatori asc;
+
+Am acoperit cerintele:
+- subcereri sincronizate în care intervin cel puțin 3 tabele
+- ordonări
+
+III.
+Afisati id-ul fiecarui sponsor, data incheierii primului contract, data finalizarii ultimului contract cat si numarul de contracte incheiate de 
+acel sponsor care a efectuat primul contract inainte de prima zi din luna martie a anului 2002.
+
+select id_sponsor, min(data_inceperii_contractului) data_primul_contract,max(data_incheierii_contractului) data_ultimul_contract, count(*) Nr_contracte
+from contract c
+group by id_sponsor
+having min(data_inceperii_contractului) <'01-MAR-02';
+
+Am acoperit cerintele:
+- grupări de date, funcții grup, filtrare la nivel de grupuri
+
+IV.
+Afisati id-ul sponsorilor, bugetul investit, numarul de echipe sponsorizate si numele sponsorului pentru sponsorii al caror buget investit este 
+mai mare sau egal cu 500.000 iar numele lor nu incep cu litera "a" iar data incheierii ultimului contract sa nu fie in luna IULIE.
+Rezultatele vor fi afisate in ordine descrescatoare.
+
+select distinct s.id_sponsor, s.buget_investit,nvl(numar_echipe_sponsorizate, 0) Nr_echipe_sponsorizate,
+decode(s.id_sponsor,240555, 'eToro', 190841,'City Insurance', 212094,'Nivea Men',
+688148,	'Adidas', 'Firma necunoscuta') Nume_firma
+from sponsor s, contract c
+where s.id_sponsor = c.id_sponsor and s.buget_investit >= 500000 and lower(s.nume_sponsor) not like 'a%'
+and upper(EXTRACT(MONTH from data_incheierii_contractului)) not like '%JUL%'
+order by s.buget_investit desc;
+
+Am acoperit cerintele:
+-am utilizat 2 funcții pe șiruri de caractere, 1 funcție pe date calendaristice si funcția NVL si DECODE
+
+V.
+Sa se afizeze numele, prenumele, data nasterii la care se aduna 24 de luni, postul, salariu mediu pe acel post si comparatia cu salariu respectivului jucator a jucatorilor
+nascuti dupa data de 01.03.1990 si care au adresele de email inregistrate pe yahoo.
+
+with player as
+(select p.denumire_post Post, avg(p.salariu) Salariu
+from post p, jucator j
+where p.id_post = j.id_post
+group by p.denumire_post)
+select per.nume, per.prenume, ADD_MONTHS(per.data_nasterii, 24), p1.Post, p.salariu,
+case when p.salariu > p1.Salariu then 'Salariu peste medie'
+when p.salariu = p1.Salariu then 'Salariu mediu'
+else 'Salariu sub cel mediu'
+end as Comparatie
+from player p1, post p, jucator j, persoana per
+where p1.post = p.denumire_post and j.id_post = p.id_post and j.id_persoana = per.id_persoana and per.data_nasterii > '01-MAR-90' and per.email like '%yahoo%';
+
+Am acoperit cerintele:
+-utilizarea a cel puțin 1 bloc de cerere (clauza WITH)
+-functia CASE
+-1 operatie pe date calendaristice
+
+
+
+13.Implementarea a 3operații de actualizare șide suprimare a datelor utilizând subcereri.
+
+1. 
+delete from persoana
+where id_persoana in(select j.id_persoana
+                        from jucator j, post p
+                        where j.id_post = p.id_post 
+                        and j.id_post in (select id_post
+                                            from post
+                                            where salariu > 50000 and denumire_post like '%as'))
+and data_nasterii < '01-FEB-2000';
+
+
+2.
+update planificare
+set data = ADD_MONTHS(data, 6)
+where (cod_locatie, cod_etapa) in  (select  distinct l.cod_locatie, e.cod_etapa
+                                    from campionat c, locatie l, etapa e, meci m, planificare p
+                                    where c.id_campionat = e.id_campionat and e.cod_etapa = m.cod_etapa
+                                    and p.cod_meci = m.cod_meci and p.cod_locatie = l.cod_locatie
+                                    and lower(l.tara) like 'anglia' and e.numar_etapa in (32,5,21));
+
+3.
+update sponsor
+set buget_investit = (select round(avg(sum(buget_investit/s.numar_echipe_sponsorizate)))
+                      from contract c, sponsor s
+			where c.id_sponsor = s.id_sponsor
+                      group by s.id_sponsor)
+where numar_echipe_sponsorizate > 2;	
